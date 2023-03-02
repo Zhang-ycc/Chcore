@@ -50,7 +50,7 @@ msr spsr_el3, x9
 
 ```
 char *p = str;
-while (p){
+while (*p != '\0'){
     early_uart_send(*p);
     p ++;
 }
@@ -58,7 +58,7 @@ while (p){
 
 > 练习题 7：在 `kernel/arch/aarch64/boot/raspi3/init/tools.S` 中 `LAB 1 TODO 4` 处填写一行汇编代码，以启用 MMU。
 
-设置`sctlr_el1`寄存器的M域（`bit[0]`）为1，启动MMU。
+设置`sctlr_el1`寄存器的M字段为1，启用MMU。
 
 ```
 orr x8, x8, #SCTLR_EL1_M

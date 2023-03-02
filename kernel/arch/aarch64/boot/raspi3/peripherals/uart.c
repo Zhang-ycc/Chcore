@@ -78,7 +78,7 @@ void uart_send_string(char *str)
 {
         /* LAB 1 TODO 3 BEGIN */
         char *p = str;
-        while (p){
+        while (*p != '\0'){
                 early_uart_send(*p);
                 p ++;
         }
