@@ -23,9 +23,22 @@
 
 ![img_1.png](img_1.png)
 
-> 思考题 4：请解释 `ttbr0_el1` 与 `ttbr0_el1` 是具体如何被配置的，给出代码位置，并思考页表基地址配置后为何需要ISB指令。
+> 思考题 4：请解释 `ttbr0_el1` 与 `ttbr1_el1` 是具体如何被配置的，给出代码位置，并思考页表基地址配置后为何需要ISB指令。
 
+在kernel/arch/aarch54/boot/raspi3/init/tools.S，el1_mmu_activate函数中。
 
+完成 `init_boot_pt` 函数后，在 `el1_mmu_activate` 中将boot_ttbr0_l0、boot_ttbr1_l0数组分别放入ttbr0_el1、ttbr1_el1寄存器中。
+
+```asm
+/* Write ttbr with phys addr of the translation table */
+adrp    x8, boot_ttbr0_l0
+msr     ttbr0_el1, x8
+adrp    x8, boot_ttbr1_l0
+msr     ttbr1_el1, x8
+isb
+```
+
+ISB指令会刷新处理器中的管道，可以确保所有在ISB指令之后的指令都从指令高速缓存或内存中重新预取。页表基地址配置后使用ISB指令，可以确保提取时间晚于ISB指令的指令能够检测到ISB指令执行前就已经执行的上下文更改操作的执行效果，即页表基地址配置。
 
 > 思考题 8：阅读 Arm Architecture Reference Manual，思考要在操作系统中支持写时拷贝（Copy-on-Write，CoW）需要配置页表描述符的哪个/哪些字段，并在发生缺页异常（实际上是 permission fault）时如何处理。
 
@@ -36,5 +49,4 @@ AP字段。
 > 思考题 9：为了简单起见，在 ChCore 实验中没有为内核页表使用细粒度的映射，而是直接沿用了启动时的粗粒度页表，请思考这样做有什么问题。
 
 1. 增加系统管理内存的复杂度；
-2. 产生更多碎片，造成资源浪费；
-3. 
+2. 产生更多碎片，造成物理内存资源浪费。
