@@ -36,12 +36,16 @@ void sys_putc(char ch)
 {
         /* LAB 3 TODO BEGIN */
 
+        uart_send(ch);
+
         /* LAB 3 TODO END */
 }
 
 u32 sys_getc(void)
 {
         /* LAB 3 TODO BEGIN */
+
+        return uart_recv();
 
         /* LAB 3 TODO END */
 }
