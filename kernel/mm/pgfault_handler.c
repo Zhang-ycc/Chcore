@@ -68,11 +68,20 @@ int handle_trans_fault(struct vmspace *vmspace, vaddr_t fault_addr)
                 fault_addr = ROUND_DOWN(fault_addr, PAGE_SIZE);
                 /* LAB 3 TODO BEGIN */
 
+                pa = get_page_from_pmo(pmo, index);
+
                 /* LAB 3 TODO END */
                 if (pa == 0) {
                         /* Not committed before. Then, allocate the physical
                          * page. */
                         /* LAB 3 TODO BEGIN */
+
+                        //分配一个新的物理页，将将页记录到 PMO 中，并增加页表映射
+                        void *new_page = get_pages(0);
+                        memset(new_page, 0, PAGE_SIZE);
+                        pa = virt_to_phys((vaddr_t)new_page);
+                        commit_page_to_pmo(pmo, index, pa);
+                        map_range_in_pgtbl(new_page, fault_addr, pa, PAGE_SIZE, perm);
 
                         /* LAB 3 TODO END */
 #ifdef CHCORE_LAB3_TEST
@@ -101,6 +110,8 @@ int handle_trans_fault(struct vmspace *vmspace, vaddr_t fault_addr)
                          * Repeated mapping operations are harmless.
                          */
                         /* LAB 3 TODO BEGIN */
+
+                        map_range_in_pgtbl(vmspace->pgtbl ,fault_addr, pa, PAGE_SIZE, perm);
 
                         /* LAB 3 TODO END */
 #ifdef CHCORE_LAB3_TEST
