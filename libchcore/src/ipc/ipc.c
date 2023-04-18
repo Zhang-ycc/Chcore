@@ -30,6 +30,11 @@ int ipc_register_server(server_handler server_handler)
         struct ipc_vm_config vm_config;
         /* LAB 4 TODO BEGIN: fill vm_config */
 
+        vm_config.stack_base_addr = SERVER_STACK_BASE;
+        vm_config.stack_size = SERVER_STACK_SIZE;
+        vm_config.buf_base_addr = SERVER_BUF_BASE;
+        vm_config.buf_size = SERVER_BUF_SIZE;
+
         /* LAB 4 TODO END */
         ret = __chcore_sys_register_server(
                 (u64)server_handler, MAX_CLIENT, (u64)&vm_config);
@@ -50,6 +55,9 @@ struct ipc_struct *ipc_register_client(int server_thread_cap)
                 return NULL;
 
         /* LAB 4 TODO BEGIN: fill vm_config according to client_id */
+
+        vm_config.buf_base_addr = CLIENT_BUF_BASE + client_id * CLIENT_BUF_SIZE;
+        vm_config.buf_size = CLIENT_BUF_SIZE;
 
         /* LAB 4 TODO END */
         while (retry_times) {
@@ -128,6 +136,8 @@ int ipc_set_msg_data(struct ipc_msg *ipc_msg, void *data, u64 offset, u64 len)
 
         /* Lab4: memcpy the data to correct offset in ipc_msg */
         /* LAB 4 TODO BEGIN */
+
+        memcpy(ipc_get_msg_data(ipc_msg) + offset, data, len);
 
         /* LAB 4 TODO END */
         return 0;
