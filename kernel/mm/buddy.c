@@ -97,6 +97,20 @@ static struct page *split_page(struct phys_mem_pool *pool, u64 order,
          * a suitable free list.
          */
 
+        while (page->order > order){
+                //分裂空闲块成一对伙伴块
+                page->order --;
+                struct page* buddy_page = get_buddy_chunk(pool, page);
+                buddy_page->order = page->order;
+                buddy_page->allocated = 0;
+
+                //把分裂后的空闲块放入对应大小的空闲链表
+                pool->free_lists[buddy_page->order].nr_free ++;
+                list_add(&(buddy_page->node), &(pool->free_lists[page->order].free_list));
+        }
+
+        return page;
+
         /* LAB 2 TODO 2 END */
 }
 
@@ -107,6 +121,36 @@ struct page *buddy_get_pages(struct phys_mem_pool *pool, u64 order)
          * Hint: Find a chunk that satisfies the order requirement
          * in the free lists, then split it if necessary.
          */
+        u64 cur_order;
+        struct page *page = NULL;
+
+        for (cur_order = order; order < BUDDY_MAX_ORDER; cur_order++){
+                //找到最小不为空的链表
+                if (pool->free_lists[cur_order].nr_free != 0){
+                        break ;
+                }
+        }
+
+        //没有能分配的了(重要，没有这一句无法判断页表满了)
+        if (cur_order > BUDDY_MAX_ORDER- 1)
+                return NULL;
+
+        //从表头取出空闲块
+        page = list_entry(pool->free_lists[cur_order].free_list.next, struct page, node);
+
+        //当前链表空闲块数减一
+        pool->free_lists[cur_order].nr_free --;
+        //从空闲链表中删除此空闲块
+        list_del(&(page->node));
+
+        //判断是否需要分裂空闲块
+        if (cur_order > order){
+                page = split_page(pool, order, page);
+        }
+        //标记成已分配
+        page->allocated = 1;
+
+        return page;
 
         /* LAB 2 TODO 2 END */
 }
@@ -119,6 +163,35 @@ static struct page *merge_page(struct phys_mem_pool *pool, struct page *page)
          * if possible.
          */
 
+        while (page->order < BUDDY_MAX_ORDER - 1){
+                //获得伙伴块
+                struct page *chunk_page = get_buddy_chunk(pool, page);
+                if (chunk_page == NULL){
+                        break ;
+                }
+                //伙伴块的大小可能不一样，例如伙伴块已分裂，此时也不能合并伙伴块
+                if (chunk_page->order != page->order){
+                        break ;
+                }
+                //如果伙伴块空闲
+                if (!chunk_page->allocated){
+                        //合并伙伴块
+                        //将伙伴块从空闲链表中取出
+                        pool->free_lists[chunk_page->order].nr_free --;
+                        list_del(&(chunk_page->node));
+
+                        if (page_to_virt(page) > page_to_virt(chunk_page)){
+                                page = chunk_page;
+                        }
+                        //继续向上合并
+                        page->order ++;
+                }
+                else
+                {
+                        break ;
+                }
+        }
+        return page;
         /* LAB 2 TODO 2 END */
 }
 
@@ -129,6 +202,19 @@ void buddy_free_pages(struct phys_mem_pool *pool, struct page *page)
          * Hint: Merge the chunk with its buddy and put it into
          * a suitable free list.
          */
+        int order;
+        struct free_list *list;
+
+        //标记成空闲
+        page->allocated = 0;
+        //（尝试）合并伙伴块
+        page = merge_page(pool, page);
+
+        //把合并后的伙伴块放入对应大小的空闲链表
+        order = page->order;
+        list = &(pool->free_lists[order]);
+        list->nr_free ++;
+        list_add(&(page->node), &(list->free_list));
 
         /* LAB 2 TODO 2 END */
 }

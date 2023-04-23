@@ -102,7 +102,7 @@ static int get_next_ptp(ptp_t *cur_ptp, u32 level, vaddr_t va, ptp_t **next_ptp,
 
         if (cur_ptp == NULL)
                 return -ENOMAPPING;
-
+        //获得相应页表的虚拟页号索引
         switch (level) {
         case 0:
                 index = GET_L0_INDEX(va);
@@ -120,7 +120,9 @@ static int get_next_ptp(ptp_t *cur_ptp, u32 level, vaddr_t va, ptp_t **next_ptp,
                 BUG_ON(1);
         }
 
+        //根据索引获得对应页表项
         entry = &(cur_ptp->ent[index]);
+        //缺页
         if (IS_PTE_INVALID(entry->pte)) {
                 if (alloc == false) {
                         return -ENOMAPPING;
@@ -131,19 +133,32 @@ static int get_next_ptp(ptp_t *cur_ptp, u32 level, vaddr_t va, ptp_t **next_ptp,
                         pte_t new_pte_val;
 
                         /* alloc a single physical page as a new page table page  */
-                        /* LAB 2 TODO 3 BEGIN 
+                        /* LAB 2 TODO 3 BEGIN
                          * Hint: use get_pages to allocate a new page table page
                          *       set the attr `is_valid`, `is_table` and `next_table_addr` of new pte
                          */
+                        //分配新页表
+                        new_ptp = get_pages(0);
+                        memset(new_ptp, 0, PAGE_SIZE);
+                        //新页表的物理地址
+                        new_ptp_paddr = virt_to_phys((vaddr_t)new_ptp);
 
+                        new_pte_val.pte = 0UL;
+                        new_pte_val.table.is_valid = 1;
+                        new_pte_val.table.is_table = 1;
+                        new_pte_val.table.next_table_addr = new_ptp_paddr >> PAGE_SHIFT;
+
+                        entry->pte = new_pte_val.pte;
                         /* LAB 2 TODO 3 END */
                 }
         }
 
         *next_ptp = (ptp_t *)GET_NEXT_PTP(entry);
         *pte = entry;
+        //表条目
         if (IS_PTE_TABLE(entry->pte))
                 return NORMAL_PTP;
+        //块条目
         else
                 return BLOCK_PTP;
 }
@@ -210,6 +225,40 @@ int query_in_pgtbl(void *pgtbl, vaddr_t va, paddr_t *pa, pte_t **entry)
          * return the pa and pte until a L0/L1 block or page, return
          * `-ENOMAPPING` if the va is not mapped.
          */
+        ptp_t *cur_ptp = (ptp_t *)pgtbl;
+        ptp_t *next_ptp;
+        pte_t *pte;
+
+        for (int level = 0; level <= 3; level ++) {
+                int ret = get_next_ptp(cur_ptp, level, va, &next_ptp, &pte, false);
+
+                // return `-ENOMAPPING` if the va is not mapped
+                if (ret == -ENOMAPPING) {
+                        return -ENOMAPPING;
+                }
+
+                // 下一页表是块条目
+                if (ret == BLOCK_PTP) {
+                        switch (level) {
+                        case 1:
+                                //L1
+                                //地址+偏移
+                                *entry = pte;
+                                *pa = virt_to_phys((vaddr_t)next_ptp) + GET_VA_OFFSET_L1(va);
+                                return 0;
+                        case 2:
+                                //L2
+                                *entry = pte;
+                                *pa = virt_to_phys((vaddr_t)next_ptp) + GET_VA_OFFSET_L2(va);
+                                return 0;
+                        }
+                }
+                cur_ptp = next_ptp;
+        }
+        //L3
+        *entry = pte;
+        *pa = virt_to_phys((vaddr_t)next_ptp) + GET_VA_OFFSET_L3(va);
+        return 0;
 
         /* LAB 2 TODO 3 END */
 }
@@ -225,6 +274,38 @@ int map_range_in_pgtbl(void *pgtbl, vaddr_t va, paddr_t pa, size_t len,
          * mapped.
          */
 
+        while (len) {
+                ptp_t *cur_ptp = (ptp_t *)pgtbl;
+                ptp_t *next_ptp;
+                pte_t *pte;
+
+                //注意L3时不需要新建页表项
+                for (int level = 0; level < 3; level ++) {
+                        int ret = get_next_ptp(cur_ptp, level, va, &next_ptp, &pte, true);
+                        if (ret == -ENOMAPPING) {
+                                return -ENOMAPPING;
+                        }
+                        cur_ptp = next_ptp;
+                }
+                //现在cur_ptp是L3页表
+                pte_t *entry;
+                //获得L3页表条目
+                entry = &(cur_ptp->ent[GET_L3_INDEX(va)]);
+                //标记映射
+                entry->l3_page.is_valid = 1;
+                //页条目
+                entry->l3_page.is_page = 1;
+                //描述符
+                entry->l3_page.pfn = pa >> PAGE_SHIFT;
+                set_pte_flags(entry, flags, USER_PTE);
+
+                va += PAGE_SIZE;
+                pa += PAGE_SIZE;
+                len -= PAGE_SIZE;
+        }
+
+        return 0;
+
         /* LAB 2 TODO 3 END */
 }
 
@@ -237,6 +318,27 @@ int unmap_range_in_pgtbl(void *pgtbl, vaddr_t va, size_t len)
          * unmapped.
          */
 
+        while (len) {
+                ptp_t *cur_ptp = (ptp_t *)pgtbl;
+                ptp_t *next_ptp;
+                pte_t *pte;
+
+                for (int level = 0; level <= 3; level ++) {
+                        int ret = get_next_ptp(cur_ptp, level, va, &next_ptp, &pte, false);
+                        if (ret == -ENOMAPPING) {
+                                return -ENOMAPPING;
+                        }
+                        cur_ptp = next_ptp;
+                }
+
+                //取消映射
+                pte->l3_page.is_valid = 0;
+
+                va += PAGE_SIZE;
+                len -= PAGE_SIZE;
+        }
+        return 0;
+
         /* LAB 2 TODO 3 END */
 }
 
@@ -244,13 +346,122 @@ int map_range_in_pgtbl_huge(void *pgtbl, vaddr_t va, paddr_t pa, size_t len,
                             vmr_prop_t flags)
 {
         /* LAB 2 TODO 4 BEGIN */
+        //PAGE_SIZE == (1 << (PAGE_SHIFT))
 
+        while (len){
+                //1GB
+                if (len >= 1 << 30){
+                        ptp_t *cur_ptp = (ptp_t *)pgtbl;
+                        ptp_t *next_ptp;
+                        pte_t *pte;
+
+                        int ret = get_next_ptp(cur_ptp, 0, va, &next_ptp, &pte, true);
+                        if (ret == -ENOMAPPING) {
+                                return -ENOMAPPING;
+                        }
+                        cur_ptp = next_ptp;
+
+                        //现在cur_ptp是L1页表
+                        pte_t *entry;
+                        //获得L1页表条目
+                        entry = &(cur_ptp->ent[GET_L1_INDEX(va)]);
+                        //标记映射
+                        entry->l1_block.is_valid = 1;
+                        //块条目
+                        entry->l1_block.is_table = 0;
+                        //描述符
+                        entry->l1_block.pfn = pa >> 30;
+                        set_pte_flags(entry, flags, USER_PTE);
+
+                        va += 1 << 30;
+                        pa += 1 << 30;
+                        len -= 1 << 30;
+                }
+                //2MB
+                else if (len >= 1 << 21){
+                        ptp_t *cur_ptp = (ptp_t *)pgtbl;
+                        ptp_t *next_ptp;
+                        pte_t *pte;
+
+                        for (int level = 0; level < 2; level ++) {
+                                int ret = get_next_ptp(cur_ptp, level, va, &next_ptp, &pte, true);
+                                if (ret == -ENOMAPPING) {
+                                        return -ENOMAPPING;
+                                }
+                                cur_ptp = next_ptp;
+                        }
+                        //现在cur_ptp是L2页表
+                        pte_t *entry;
+                        //获得L2页表条目
+                        entry = &(cur_ptp->ent[GET_L2_INDEX(va)]);
+                        //标记映射
+                        entry->l2_block.is_valid = 1;
+                        //块条目
+                        entry->l2_block.is_table = 0;
+                        //描述符
+                        entry->l2_block.pfn = pa >> 21;
+                        set_pte_flags(entry, flags, USER_PTE);
+
+                        va += 1 << 21;
+                        pa += 1 << 21;
+                        len -= 1 << 21;
+                }
+                else {
+                        return map_range_in_pgtbl(pgtbl, va, pa, len, flags);
+                }
+        }
         /* LAB 2 TODO 4 END */
 }
 
 int unmap_range_in_pgtbl_huge(void *pgtbl, vaddr_t va, size_t len)
 {
         /* LAB 2 TODO 4 BEGIN */
+
+        while (len){
+                //1GB
+                if (len >= 1 << 30){
+                        ptp_t *cur_ptp = (ptp_t *)pgtbl;
+                        ptp_t *next_ptp;
+                        pte_t *pte;
+
+                        for (int level = 0; level <= 1; level ++) {
+                                int ret = get_next_ptp(cur_ptp, level, va, &next_ptp, &pte, false);
+                                if (ret == -ENOMAPPING) {
+                                        return -ENOMAPPING;
+                                }
+                                cur_ptp = next_ptp;
+                        }
+
+                        //取消映射
+                        pte->l1_block.is_valid = 0;
+
+                        va += 1 << 30;
+                        len -= 1 << 30;
+                }
+                //2MB
+                else if (len >= 1 << 21){
+                        ptp_t *cur_ptp = (ptp_t *)pgtbl;
+                        ptp_t *next_ptp;
+                        pte_t *pte;
+
+                        for (int level = 0; level <= 2; level ++) {
+                                int ret = get_next_ptp(cur_ptp, level, va, &next_ptp, &pte, false);
+                                if (ret == -ENOMAPPING) {
+                                        return -ENOMAPPING;
+                                }
+                                cur_ptp = next_ptp;
+                        }
+
+                        //取消映射
+                        pte->l2_block.is_valid = 0;
+
+                        va += 1 << 21;
+                        len -= 1 << 21;
+                }
+                else {
+                        return unmap_range_in_pgtbl(pgtbl, va, len);
+                }
+        }
 
         /* LAB 2 TODO 4 END */
 }
