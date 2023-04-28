@@ -34,7 +34,6 @@ int fs_server_cap;
 
 struct ipc_struct *fs_ipc_struct = NULL;
 
-
 static void connect_tmpfs_server(void)
 {
 
@@ -118,10 +117,56 @@ void demo_getdents(int fd)
 		}
 }
 
-int alloc_fd() 
+// int alloc_fd() 
+// {
+// 	static int cnt = 0;
+// 	return ++cnt;
+// }
+
+int open_fs(int fd, const char *fspath)
 {
-	static int cnt = 0;
-	return ++cnt;
+	int ret;
+    struct ipc_msg *ipc_msg = ipc_create_msg(
+        fs_ipc_struct, sizeof(struct fs_request), 0);
+    chcore_assert(ipc_msg);
+    struct fs_request * fr = (struct fs_request *)ipc_get_msg_data(ipc_msg);
+    fr->req = FS_REQ_OPEN;
+    strcpy(fr->open.pathname, fspath);
+	fr->open.flags = O_RDONLY;
+	fr->open.new_fd = fd;
+    ret = ipc_call(fs_ipc_struct, ipc_msg);
+    ipc_destroy_msg(fs_ipc_struct, ipc_msg);
+    return ret;
+}
+
+int close_fs(int fd, const char *fspath)
+{
+	int ret;
+    struct ipc_msg *ipc_msg = ipc_create_msg(
+        fs_ipc_struct, sizeof(struct fs_request), 0);
+    chcore_assert(ipc_msg);
+    struct fs_request * fr = (struct fs_request *)ipc_get_msg_data(ipc_msg);
+    fr->req = FS_REQ_CLOSE;
+	fr->close.fd = fd;
+    ret = ipc_call(fs_ipc_struct, ipc_msg);
+    ipc_destroy_msg(fs_ipc_struct, ipc_msg);
+    return ret;
+}
+
+int read_fs(int fd, char *buf)
+{
+	int ret;
+    struct ipc_msg *ipc_msg = ipc_create_msg(
+        fs_ipc_struct, sizeof(struct fs_request), 0);
+    chcore_assert(ipc_msg);
+    struct fs_request * fr = (struct fs_request *)ipc_get_msg_data(ipc_msg);
+    fr->req = FS_REQ_READ;
+	fr->read.count = BUFLEN;
+	fr->read.fd = fd;
+    ret = ipc_call(fs_ipc_struct, ipc_msg);
+	memcpy(buf, ipc_get_msg_data(ipc_msg), ret);
+    ipc_destroy_msg(fs_ipc_struct, ipc_msg);
+    return ret;
 }
 
 int do_complement(char *buf, char *complement, int complement_time)
@@ -134,6 +179,27 @@ int do_complement(char *buf, char *complement, int complement_time)
 	int offset;
 
 	/* LAB 5 TODO BEGIN */
+
+	int fd = alloc_fd();
+	open_fs(fd, "/");
+
+	ret = getdents(fd, scan_buf, BUFLEN);
+
+	for (offset = 0; offset < ret; offset += p->d_reclen) {
+		p = (struct dirent *)(scan_buf + offset);
+		get_dent_name(p, name);
+
+		if (name[0] == '.'){
+			continue;
+		}
+		if (j == complement_time) {
+			memcpy(complement, name, strlen(name));
+			complement[strlen(name)] = '\0';
+			r = 1;
+			break;
+		}
+		j++;
+	}
 
 	/* LAB 5 TODO END */
 
@@ -167,6 +233,21 @@ char *readline(const char *prompt)
 	/* LAB 5 TODO BEGIN */
 	/* Fill buf and handle tabs with do_complement(). */
 
+		if (c == '\n' || c == '\r') {
+			break;
+		}
+
+		if (c == '\t') {
+			do_complement(buf, complement, complement_time);
+			printf("%s\n", complement);
+			
+			complement_time ++;
+			continue;
+		}
+
+		buf[i] = c;
+		i++;
+
 	/* LAB 5 TODO END */
 	}
 
@@ -184,6 +265,13 @@ void print_file_content(char* path)
 
 	/* LAB 5 TODO BEGIN */
 
+	int fd = alloc_fd();
+	open_fs(fd, path);
+
+	char buf[BUFLEN];
+	read_fs(fd, buf);
+	
+	printf("%s", buf);
 	/* LAB 5 TODO END */
 
 }
@@ -193,6 +281,25 @@ void fs_scan(char *path)
 {
 
 	/* LAB 5 TODO BEGIN */
+
+	int fd = alloc_fd();
+	open_fs(fd, path);
+	
+	char name[BUFLEN];
+	char scan_buf[BUFLEN];
+	int offset;
+	struct dirent *p;
+
+	int ret = getdents(fd, scan_buf, BUFLEN);
+
+	for (offset = 0; offset < ret; offset += p->d_reclen) {
+		p = (struct dirent *)(scan_buf + offset);
+		get_dent_name(p, name);
+
+		if (name[0] != '.'){
+			printf("%s ", name);
+		}
+	}
 
 	/* LAB 5 TODO END */
 }
@@ -226,6 +333,15 @@ int do_cat(char *cmdline)
 int do_echo(char *cmdline)
 {
 	/* LAB 5 TODO BEGIN */
+
+	char pathbuf[BUFLEN];
+
+	pathbuf[0] = '\0';
+	cmdline += 4;
+	while (*cmdline == ' ')
+		cmdline++;
+	strcat(pathbuf, cmdline);
+	printf("%s", pathbuf);
 
 	/* LAB 5 TODO END */
 	return 0;
@@ -279,6 +395,13 @@ int run_cmd(char *cmdline)
 	/* Hint: Function chcore_procm_spawn() could be used here. */
 	/* LAB 5 TODO BEGIN */
 
+	// while(*cmdline == ' ') {
+	// 	cmdline ++;
+	// }
+
+	// printf("%s\n", cmdline);
+	// chcore_procm_spawn(cmdline, &cap);
+
 	/* LAB 5 TODO END */
 	return 0;
 }
@@ -288,5 +411,4 @@ void connect_fs(void)
 {
 	// register fs client
 	connect_tmpfs_server();
-
 }
