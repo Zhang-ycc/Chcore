@@ -106,9 +106,22 @@ static u64 load_binary(struct cap_group *cap_group, struct vmspace *vmspace,
         for (i = 0; i < elf->header.e_phnum; ++i) {
                 pmo_cap[i] = -1;
                 if (elf->p_headers[i].p_type == PT_LOAD) {
+                        //程序在虚拟内存的长度
                         seg_sz = elf->p_headers[i].p_memsz;
+                        //在虚拟内存中的起始地址
                         p_vaddr = elf->p_headers[i].p_vaddr;
                         /* LAB 3 TODO BEGIN */
+
+                        u64 vaddr_start = ROUND_DOWN(p_vaddr, PAGE_SIZE);
+                        u64 vaddr_end = ROUND_UP(p_vaddr + seg_sz, PAGE_SIZE);
+                        seg_map_sz = vaddr_end - vaddr_start;
+
+                        pmo_cap[i] = create_pmo(seg_map_sz, PMO_DATA, cap_group, &pmo);
+
+                        memcpy((void *)(phys_to_virt(pmo->start + p_vaddr - vaddr_start)),
+                               bin + elf->p_headers[i].p_offset, elf->p_headers[i].p_filesz);
+                        flags = PFLAGS2VMRFLAGS(elf->p_headers[i].p_flags);
+                        ret = vmspace_map_range(vmspace, p_vaddr, seg_map_sz, flags, pmo);
 
                         /* LAB 3 TODO END */
                         BUG_ON(ret != 0);
@@ -400,6 +413,10 @@ void sys_thread_exit(void)
 #endif
         /* LAB 3 TODO BEGIN */
 
+        current_thread->thread_ctx->state = TS_EXIT;
+        current_thread->thread_ctx->thread_exit_state = TE_EXITED;
+        current_thread = NULL;
+
         /* LAB 3 TODO END */
         /* Reschedule */
         sched();
@@ -437,6 +454,8 @@ int sys_set_affinity(u64 thread_cap, s32 aff)
 
         /* LAB 4 TODO BEGIN */
 
+        thread->thread_ctx->affinity = aff;
+
         /* LAB 4 TODO END */
         if (thread_cap != -1)
                 obj_put((void *)thread);
@@ -459,6 +478,8 @@ s32 sys_get_affinity(u64 thread_cap)
         if (thread == NULL)
                 return -ECAPBILITY;
         /* LAB 4 TODO BEGIN */
+
+        aff = thread->thread_ctx->affinity;
 
         /* LAB 4 TODO END */
 
