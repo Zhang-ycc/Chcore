@@ -234,6 +234,7 @@ char *readline(const char *prompt)
 	/* Fill buf and handle tabs with do_complement(). */
 
 		if (c == '\n' || c == '\r') {
+                        putc(c);
 			break;
 		}
 
@@ -245,6 +246,7 @@ char *readline(const char *prompt)
 			continue;
 		}
 
+		putc(c);
 		buf[i] = c;
 		i++;
 
@@ -395,12 +397,18 @@ int run_cmd(char *cmdline)
 	/* Hint: Function chcore_procm_spawn() could be used here. */
 	/* LAB 5 TODO BEGIN */
 
-	// while(*cmdline == ' ') {
-	// 	cmdline ++;
-	// }
+	 while(*cmdline == ' ') {
+	 	cmdline ++;
+	 }
 
-	// printf("%s\n", cmdline);
-	// chcore_procm_spawn(cmdline, &cap);
+	 printf("%n", cmdline);
+	 chcore_procm_spawn(cmdline, &cap);
+
+	 while (true)
+	 {
+		/* code */
+	 }
+	 
 
 	/* LAB 5 TODO END */
 	return 0;

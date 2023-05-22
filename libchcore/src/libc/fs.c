@@ -153,25 +153,6 @@ FILE *fopen(const char * filename, const char * mode) {
 
 size_t fwrite(const void * src, size_t size, size_t nmemb, FILE * f) {
 
-	// /* LAB 5 TODO BEGIN */
-
-	// int ret;
-	// int len = size * nmemb;
-
-    // struct ipc_msg *ipc_msg = ipc_create_msg(
-    //     fs_ipc_struct, sizeof(struct fs_request) + len + 2, 0);
-    // chcore_assert(ipc_msg);
-    // struct fs_request * fr = (struct fs_request *)ipc_get_msg_data(ipc_msg);
-    // fr->req = FS_REQ_WRITE;
-    // fr->write.count = len;
-	// fr->write.fd = f->fd;
-	// ipc_set_msg_data(ipc_msg, src, sizeof(struct fs_request), len + 2);
-    // ret = ipc_call(fs_ipc_struct, ipc_msg);
-    // ipc_destroy_msg(fs_ipc_struct, ipc_msg);
-
-	// /* LAB 5 TODO END */
-    // return ret;
-
 	 /* LAB 5 TODO BEGIN */
         size_t len = size * nmemb;
         struct ipc_msg *ipc_msg = ipc_create_msg(
@@ -288,26 +269,6 @@ int fscanf(FILE * f, const char * fmt, ...) {
 
 	/* LAB 5 TODO END */
     return 0;
-}
-
-void int2str(int n, char *str){
-	char buf[256];
-	int i = 0, tmp = n;
-
-	if(!str){
-		return;
-	}
-	while(tmp){
-		buf[i] = (char)(tmp % 10) + '0';
-		tmp /= 10;
-		i++;
-	}
-	int len = i;
-	str[i] = '\0';
-	while(i > 0){
-		str[len - i] = buf[i - 1];
-		i--;
-	}
 }
 
 /* Need to support %s and %d. */

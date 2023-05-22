@@ -369,7 +369,7 @@ ssize_t tfs_file_write(struct inode * inode, off_t offset, const char *data,
 		else {
 			to_write = size;
 		}
-		memcpy(page, data, to_write);
+		memcpy(page + page_off, data, to_write);
 
 		cur_off += to_write;
 		data += to_write;
@@ -414,7 +414,7 @@ ssize_t tfs_file_read(struct inode * inode, off_t offset, char *buff,
 		else {
 			to_read = size;
 		}
-		memcpy(buff, page, to_read);
+		memcpy(buff, page + page_off, to_read);
 
 		cur_off += to_read;
 		buff += to_read;

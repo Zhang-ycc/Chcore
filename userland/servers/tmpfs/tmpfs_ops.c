@@ -79,12 +79,12 @@ int fs_creat(const char *path)
 	/* LAB 5 TODO BEGIN */
 
 	err = tfs_namex(&dirat, &leaf, 1);
-	if (err < 0) {
+	if (err) {
 		return err;
 	}
 
 	err = tfs_creat(dirat, leaf, strlen(leaf));
-	if (err < 0) {
+	if (err) {
 		return err;
 	}
 
@@ -111,12 +111,12 @@ int tmpfs_unlink(const char *path, int flags)
 	/* LAB 5 TODO BEGIN */
 
 	err = tfs_namex(&dirat, &leaf, 0);
-	if (err < 0) {
+	if (err) {
 		return err;
 	}
 
 	err = tfs_remove(dirat, leaf, strlen(leaf));
-	if (err < 0) {
+	if (err) {
 		return err;
 	}
 
@@ -140,13 +140,13 @@ int tmpfs_mkdir(const char *path, mode_t mode)
 
 	/* LAB 5 TODO BEGIN */
 
-	err = tfs_namex(&dirat, &leaf, 0);
-	if (err < 0) {
+	err = tfs_namex(&dirat, &leaf, 1);
+	if (err) {
 		return err;
 	}
 
 	err = tfs_mkdir(dirat, leaf, strlen(leaf));
-	if (err < 0) {
+	if (err) {
 		return err;
 	}
 
